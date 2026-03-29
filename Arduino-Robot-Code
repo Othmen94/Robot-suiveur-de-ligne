@@ -1,0 +1,221 @@
+//ENTRÉES/SORTIES NUMÉRIQUES          
+      //connecter le RIP des deux LEDs
+            //leds
+            #define ledRouge 4
+            #define ledVerte 5
+            
+      //connecter le RIP du capteur ultrason à la broche D6
+            //capteur ultrason
+            #define Echo 6
+            #define Trig 7  
+
+      //connecter le RIP du bouton de marche arret à la broche analogique A0
+            //capteur ultrason
+            #define boutonMarche A2
+      
+      //connecter les 6 entrées de l'interface de puissance L298 
+      //sont connectés via le "shield" aux pins suivants
+            // moteur gauche
+            #define sensMGauche 12
+            #define freinGauche 9
+            #define vitesseGauche 3
+            // moteur droit
+            #define sensMDroit 13
+            #define freinDroit 8
+            #define vitesseDroit 11
+                                                                    
+// DÉCLARATION DES CONSTANTES
+          //capteur ultrason : définition des constantes associées                                                
+            #define PROCHE 145
+            #define DANGER 80
+            #define VSON 58
+            #define NBMESURE 2
+    
+          //vitesse moteur : définition des constantes associées     
+            #define AFOND 140
+            #define PRUDENT 55
+            #define LENT 30
+
+//déclaration des variables
+int X = 0;
+byte distance = 0;
+boolean aleatoire = 0;
+
+void setup()
+{
+//initialisation des pins de sortie
+      //Setup moteurgauche
+      pinMode(sensMGauche, OUTPUT); //Initialise la broche  "sens de rotation moteur gauche" 
+      pinMode(freinGauche, OUTPUT);  //Initialise la broche  "mise en rotation" du moteur Gauche
+      pinMode(vitesseGauche, OUTPUT); //Initialise la broche  "puissance" du moteur Gauche
+      //Setup moteurdroite
+      pinMode(sensMDroit, OUTPUT); //Initialise la broche  "sens de rotation moteur droit" 
+      pinMode(freinDroit, OUTPUT);  //Initialise la broche  "mise en rotation" du moteur droit
+      pinMode(vitesseDroit, OUTPUT);   //Initialise la broche  "puissance" du moteur droit                                  
+
+      //capteur ultrason
+      pinMode(Trig, OUTPUT);
+      digitalWrite(Trig,LOW);
+      pinMode(Echo, INPUT);
+   
+      //affichage moniteur série
+      Serial.begin(9600);
+      
+      do {X  = analogRead(boutonMarche);
+        delay(20);}
+      while (X<1000);}
+    
+void loop() {
+  switch (mesure()){ //utilisation de la condition switch
+    case 0: //l'obstacle est dans la zone DANGER
+      digitalWrite(ledRouge, HIGH);
+      digitalWrite(ledVerte, LOW);
+      delay(400);
+      aleatoire = random (0,2); //génération d'un nombre aléatoire compris entre 0 et 1
+  
+      break;
+    case 1: //l'obstacle est dans la zone PROCHE
+     accelere(PRUDENT);
+     avance(PRUDENT); 
+      break;
+    case 2://pas d'obstacles en vue
+    digitalWrite(ledRouge, LOW);
+      digitalWrite(ledVerte, HIGH);
+     accelere(AFOND);
+     avance(AFOND);
+      break;
+    default:
+      break;}
+   if(aleatoire == true)
+     {tourneDroite(PRUDENT);} // pivoter à droite 
+   else
+   { tourneGauche(PRUDENT);}
+   delay(400);}
+
+
+byte mesure(){
+  //fonction qui mesure une distance avec le capteur
+  unsigned int mesure = 0; // variable de mesure
+  unsigned int cumul = 0; //variable pour la moyenne
+  for (int t = 0; t < NBMESURE; t++) { // boucle pour effectuer les mesures
+  
+    digitalWrite(Trig, LOW); //on commence à l'état bas
+    delayMicroseconds(2); //on attend que le signal soit clair
+    digitalWrite(Trig, HIGH);//mise à l'état haut
+    delayMicroseconds(10); //pendant 10 µs
+    digitalWrite(Trig, LOW); //mise à l'état bas
+    mesure = pulseIn(Echo, HIGH); // fonction pulseIn qui attend un état haut et renvoie le temps d'attente
+    cumul+=mesure; //on cumule les mesures
+    delay(20); //attente obligatoire entre deux mesures
+  }
+  mesure=cumul/NBMESURE; //on calcule la moyenne des mesures
+  mesure=mesure/VSON;//on transforme en cm
+  //Serial.println(mesure);
+
+  if (mesure<=DANGER){//on teste si l'obstacle est dans la zone DANGER
+    return 0; //si oui, on retourne le code de danger
+  }
+  else if (mesure>DANGER && mesure<PROCHE){//on teste s'il est dans la zone PROCHE
+    return 1; //si oui, on retourne le code de proche
+  }
+  return 2; // on retourne le code de sans risque
+}
+                   
+//fonctions
+void arret(){
+  //Serial.println("Je stoppe");
+  digitalWrite(freinDroit, HIGH);   //Frein engagé moteur droit
+  digitalWrite(freinGauche, HIGH);   //Frein engagé moteur gauche
+  digitalWrite(vitesseGauche, LOW);  //vitesse des deux moteurs à 0
+  digitalWrite(vitesseDroit, LOW);
+}
+
+void debraillage(){
+  digitalWrite(freinDroit, LOW);   //Frein engagé moteur droit
+  digitalWrite(freinGauche, LOW);   //Frein engagé moteur gauche
+  digitalWrite(vitesseGauche, LOW);  //vitesse des deux moteurs à 0
+  digitalWrite(vitesseDroit, LOW);
+}
+
+/*Les réglages des fonctions suivantes sont à effectuer en fonction des robots que vous utilisez
+AGISSEZ SUR sensMGauche et sensMDroit afin de réler les déplacements du robot*/
+
+
+void avance(int v){
+  //Serial.println("J'avance");
+  //commande MCC gauche
+  digitalWrite(sensMGauche, LOW); 
+  digitalWrite(freinGauche, LOW);   
+  analogWrite(vitesseGauche, v);
+  //commande MCC droit
+  digitalWrite(sensMDroit, LOW); 
+  digitalWrite(freinDroit, LOW);   
+  analogWrite(vitesseDroit, v); 
+}
+
+void accelere(int v){
+for(int acc = 10; acc<v; acc++)
+      {
+        //commande MCC gauche
+        digitalWrite(sensMGauche, LOW); 
+        digitalWrite(freinGauche, LOW);   
+        analogWrite(vitesseGauche, acc);
+        //commande MCC droit
+        digitalWrite(sensMDroit, LOW); 
+        digitalWrite(freinDroit, LOW);   
+        analogWrite(vitesseDroit, acc);
+        delay(20);}
+}
+
+void recule (int v){
+  //Serial.println("Je recule");
+  //commande MCC gauche
+  digitalWrite(sensMGauche, HIGH); 
+  digitalWrite(freinGauche, LOW);   
+  analogWrite(vitesseGauche, v);
+  //commande MCC droit
+  digitalWrite(sensMDroit, HIGH); 
+  digitalWrite(freinDroit, LOW);   
+  analogWrite(vitesseDroit, v); 
+}
+
+void tourneDroite(int v){
+  //Serial.println("Je tourne a droite");
+  //commande MCC gauche pour tourner à droite
+  digitalWrite(sensMGauche, HIGH); 
+  digitalWrite(freinGauche, LOW);   
+  analogWrite(vitesseGauche, v);
+  digitalWrite(freinDroit, LOW);
+  analogWrite(vitesseDroit, 0);
+}
+  
+void tourneGauche(int v){
+  //Serial.println("Je tourne a gauche");
+  //commande MCC droit pour tourner à gauche
+  digitalWrite(sensMDroit, HIGH); 
+  digitalWrite(freinDroit, LOW);   
+  analogWrite(vitesseDroit, v);
+  digitalWrite(freinGauche, LOW);
+  analogWrite(vitesseGauche, 0);
+}
+
+void pivoterDroite(int v){
+  //commande des deux moteurs pour pivoter à droite
+  digitalWrite(sensMGauche, HIGH); 
+  digitalWrite(freinGauche, LOW);   
+  analogWrite(vitesseGauche, v);
+  digitalWrite(sensMDroit, LOW); 
+  digitalWrite(freinDroit, LOW);
+  analogWrite(vitesseDroit, v);
+}
+ 
+
+void pivoterGauche(int v){
+  //commande des deux moteurs pour pivoter à gauche
+  digitalWrite(sensMGauche, LOW); 
+  digitalWrite(freinGauche, LOW);   
+  analogWrite(vitesseGauche, v);
+  digitalWrite(sensMDroit, HIGH); 
+  digitalWrite(freinDroit, LOW);
+  analogWrite(vitesseDroit, v);
+}
